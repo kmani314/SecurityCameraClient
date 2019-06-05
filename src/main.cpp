@@ -13,10 +13,13 @@
 #include <linux/videodev2.h>
 
 #include "AbstractSocket.h"
+#include "SocketException.h"
 
-#include <fstream>
 #include <exception>
 #include <iostream>
+#include <thread>
+#include <chrono>
+#include <string>
 
 #define VERSION 0.01
 class v4l2_exception : public std::exception {
@@ -148,124 +151,94 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+	AbstractSocket socket = AbstractSocket();
+
+	bool connected = false;
+	int i = 1;
+	int duration = 5; // Time between reconnect attempts
 	
-	/*try {
+	// Attempt to connect to server 
+	while(!connected) {
+		std::cout << "Connection Attempt " << i << " to " << serverAddress << std::endl;
 		
-		if(descriptor < 0) throw v4l2_exception((char *)"Could not open video0.");
-		
-		struct cameraHeader cameraInfo = {CAM_ID, CAM_WIDTH, CAM_HEIGHT};
-		
-		struct v4l2_capability cap;
-		ioctl_exception(descriptor, VIDIOC_QUERYCAP, &cap, (char *)"Failed to query."); // get device capabilities
-		
-		if(!cap.capabilities & V4L2_CAP_STREAMING) throw v4l2_exception((char *)"This device does not support video streaming");
-		
-		if(!cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) throw v4l2_exception((char *)"This device does not support single planar capture");
-		
-		struct v4l2_input input;
-		memset(&input, 0, sizeof(input));
-		int index = 0;
-		
-		ioctl_exception(descriptor, VIDIOC_S_INPUT, &index, (char *)"Failed to set input."); // set input index, 0 is default
-		
-		struct v4l2_format format;
-		memset(&format, 0, sizeof(format));
-		
-		format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; // Set format, currently 1920x1080 H.264 encoded
-		format.fmt.pix.width = CAM_WIDTH;
-		format.fmt.pix.height = CAM_HEIGHT;
-		format.fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
-
-		ioctl_exception(descriptor, VIDIOC_S_FMT, &format, (char *)"Failed to set format");
-
-		struct v4l2_requestbuffers reqbuf;
-		memset(&reqbuf, 0, sizeof(reqbuf));
-		
-		reqbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		reqbuf.memory = V4L2_MEMORY_MMAP;
-		reqbuf.count = BUF_REQUEST_COUNT;
-		
-		ioctl_exception(descriptor, VIDIOC_REQBUFS, &reqbuf, (char *)"Could not request buffers");
-		
-		struct v4l2_streamparm param;
-		memset(&param, 0, sizeof(param));
-		param.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;	
-		param.parm.capture.capturemode |= V4L2_CAP_TIMEPERFRAME;
-		param.parm.capture.timeperframe.numerator = 1;
-		param.parm.capture.timeperframe.denominator = 15;
-
-		ioctl_exception(descriptor, VIDIOC_S_PARM, &param, (char *)"Could not set framerate");
-
-		videoBuffer buffers[reqbuf.count]; // organize the buffers
-		std::cout << "count: " << reqbuf.count << std::endl;
-		for(int i = 0; i < reqbuf.count; i++) {
-			// for each buffer, map it to userspace and queue it so that the driver can use it 
-			struct v4l2_buffer buf;
-
-			memset(&buf, 0, sizeof(buf));
-			
-			buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-			buf.memory = V4L2_MEMORY_MMAP;
-			buf.index = i;
-			
-			ioctl_exception(descriptor, VIDIOC_QUERYBUF, &buf, (char *)"Failed to query buffers.");
-
-			void* start = mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, descriptor, buf.m.offset);
-			
-			if(start == MAP_FAILED) throw v4l2_exception((char *)"mmap failed to map buffers.");
-
-			buffers[i] = {buf, start};
-
-			memset(buffers[i].start, 0, buffers[i].bufferInfo.length);
-			ioctl_exception(descriptor, VIDIOC_QBUF, &buffers[i].bufferInfo, (char *)"Failed to initially queue buffers");
-		}
-
-
-		int currentPos = 0;
-		int sent = 0;
-		int packetSize = 32;
-		int thisPacket;
-
-		AbstractSocket socket = AbstractSocket();
-		socket.connect(HOST_PORT, HOST_ADDR);
-		std::cout << "Connected to " << HOST_ADDR << std::endl;
-		
-		socket.write(&cameraInfo.cameraID, sizeof(int)); // send the camera metadata to the server
-		socket.write(&cameraInfo.frameWidth, sizeof(int));
-		socket.write(&cameraInfo.frameHeight, sizeof(int));
-		int tmp = 0;
-		int num = 0;
-	
-		while(1) {
-			for(int i = 0; i < reqbuf.count; i++) {
-				ioctl_exception(descriptor, VIDIOC_DQBUF, &buffers[i].bufferInfo, (char *)"Failed to dequeue buffer"); // dequeue buffer
-				std::cout << "Len: " << buffers[i].bufferInfo.bytesused << std::endl;
-				socket.write(&buffers[i].bufferInfo.bytesused, 4); // send the size of the frame to the camera
-				
-				while(currentPos < buffers[i].bufferInfo.bytesused) { // serialize the frame
-					thisPacket = packetSize;
-					if(currentPos + packetSize > buffers[i].bufferInfo.bytesused) thisPacket = buffers[i].bufferInfo.bytesused - currentPos;
-					
-					sent = socket.write(buffers[i].start + currentPos, thisPacket);
-					currentPos += sent;
-				}
-				
-				currentPos = 0;
-
-				ioctl_exception(descriptor, VIDIOC_QBUF, &buffers[i].bufferInfo, (char *)"Failed to queue buffer"); // queue the buffer again
-
+		try {
+			socket.connect(port, std::string(serverAddress));
+			std::cout << "Connected to " << serverAddress << std::endl;
+			connected = true;
+			break;
+		} catch(std::exception& e) {
+			if(i >= maxReconnect) {
+				std::cout << "Exceeded Max Connection Attempts. Exiting..." << std::endl;
+				return 1;
 			}
-		}	
-	} catch(std::exception& e) { // something went wrong
-		std::cout << e.what() << std::endl;
-		
-		int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-		if(ioctl(descriptor, VIDIOC_STREAMOFF, &type) < 0) { // turn off streaming
-			std::cerr << "Failed to disable streaming!" << std::endl;
-			return -1;
+			std::this_thread::sleep_for(std::chrono::seconds(duration));
 		}
-		
-		close(descriptor); // close the descriptor
-	}*/
+		i++;
+	}
+	
+	int currentPos = 0;
+	int packet = 32;
+	int thisPacket = packet;
+	i = 1;
+
+	while(true) {
+		while(!connected) {
+			std::cout << "Reconnection Attempt " << i << std::endl;		
+			new (&socket) AbstractSocket();
+				
+			try {
+				socket.connect(port, std::string(serverAddress));
+				std::cout << "Reconnected to " << serverAddress << std::endl;
+				connected = true;
+				currentPos = 0;
+				thisPacket = packet;
+				ioctl_exception(descriptor, VIDIOC_QBUF, &buffer.bufferInfo, (char *)"Failed to queue buffer");
+			} catch(SocketException& e) {
+				if(i >= maxReconnect) {
+					std::cout << "Exceeded Max Reconnect Attempts. Exiting..." << std::endl;
+					return 1;
+				}
+
+				std::this_thread::sleep_for(std::chrono::seconds(duration));
+			} catch(v4l2_exception& e) {		
+				std::cout << e.what() << std::endl;
+				return 1;
+			}
+			i++;
+		}
+
+		try {
+			ioctl_exception(descriptor, VIDIOC_DQBUF, &buffer.bufferInfo, (char *)"Failed to dequeue buffer");
+			
+			socket.write(&buffer.bufferInfo.bytesused, sizeof(int)); // Send the length of the buffer
+
+			while(currentPos < buffer.bufferInfo.bytesused) {
+				thisPacket = packet;
+				if(currentPos + packet > buffer.bufferInfo.bytesused) thisPacket = buffer.bufferInfo.bytesused - currentPos;
+				
+				currentPos += socket.write(buffer.start + currentPos, thisPacket);
+			}
+			currentPos = 0;
+			ioctl_exception(descriptor, VIDIOC_QBUF, &buffer.bufferInfo, (char *)"Failed to queue buffer");
+
+		} catch(v4l2_exception& e) {
+			std::cout << e.what() << std::endl;
+			
+			int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+			if(ioctl(descriptor, VIDIOC_STREAMOFF, &type) < 0) { // turn off streaming
+				std::cerr << "Failed to disable streaming!" << std::endl;
+			}
+			
+			close(descriptor); 
+			
+			return 1;
+		} catch(SocketException& e) {
+			std::cout << e.what() << std::endl;
+			connected = false;
+			i = 1;
+			std::cout << "Server disconnected, attempting to reinitialize connection" << std::endl;
+			socket.~AbstractSocket();
+		}
+	}
 }
