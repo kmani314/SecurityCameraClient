@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <signal.h>
 
 #include <linux/videodev2.h>
 
@@ -150,6 +151,10 @@ int main(int argc, char** argv) {
 		std::cout << "Fatal Exception: " << e.what() << std::endl;
 		return 1;
 	}
+	
+	struct sigaction action = {SIG_IGN};
+
+	sigaction(SIGPIPE, &action, NULL);
 
 	AbstractSocket socket = AbstractSocket();
 
