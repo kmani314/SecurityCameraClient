@@ -43,16 +43,10 @@ struct videoBuffer {
 	void* start;
 };
 
-struct cameraHeader {
-	int cameraID;
-	int frameWidth;
-	int frameHeight;
-};
-
 int main(int argc, char** argv) {
 	std::cout << "Initializing Camera Client v." << VERSION << "..." << std::endl;
-	if(argc < 7) {
-		std::cerr << "Incorrect Arguments. Arguments required: 1. Server Address 2. Port 3. Camera Width 4. Camera Height 5. Camera ID 6. Maximum Reconnect Attempts" << std::endl;
+	if(argc < 8) {
+		std::cerr << "Incorrect Arguments. Arguments required: 1. Server Address 2. Port 3. Camera Width 4. Camera Height 5. Camera ID 6. Maximum Reconnect Attempts 7. Duration between reconnect attempts" << std::endl;
 		return 1;
 	}
 	
@@ -64,15 +58,15 @@ int main(int argc, char** argv) {
 	int height = atoi(argv[4]);
 	int id = atoi(argv[5]);
 	int maxReconnect = atoi(argv[6]);
-
-	std::cout << "Addr: " << serverAddress << std::endl;
+	int duration = atoi(argv[7]); // Time between reconnect attempts
+	
 	std::cout << "Port: " << port << std::endl;
 	std::cout << "Width: " << width << std::endl;
 	std::cout << "Height: " << height << std::endl;
 	std::cout << "Id: " << id << std::endl;
 	std::cout << "Reconnect Attempts: " << maxReconnect << std::endl;
+	std::cout << "Duration between reconnects (s) : " << duration << std::endl;
 
-	
 	int descriptor = open("/dev/video0", O_RDWR);
 	if(descriptor < 0) {
 		std::cerr << "Fatal Exception: Unable to open /dev/video0" << std::endl;
@@ -160,7 +154,6 @@ int main(int argc, char** argv) {
 
 	bool connected = false;
 	int i = 1;
-	int duration = 5; // Time between reconnect attempts
 	
 	// Attempt to connect to server 
 	while(!connected) {
@@ -170,6 +163,7 @@ int main(int argc, char** argv) {
 			socket.connect(port, std::string(serverAddress));
 			std::cout << "Connected to " << serverAddress << std::endl;
 			connected = true;
+			socket.write(&id, sizeof(int));
 			break;
 		} catch(std::exception& e) {
 			if(i >= maxReconnect) {
@@ -195,6 +189,7 @@ int main(int argc, char** argv) {
 				socket.connect(port, std::string(serverAddress));
 				std::cout << "Reconnected to " << serverAddress << std::endl;
 				connected = true;
+				socket.write(&id, sizeof(int));
 				currentPos = 0;
 				thisPacket = packet;
 				ioctl_exception(descriptor, VIDIOC_QBUF, &buffer.bufferInfo, (char *)"Failed to queue buffer");
