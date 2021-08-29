@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
 		param.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;	
 		param.parm.capture.capturemode |= V4L2_CAP_TIMEPERFRAME;
 		param.parm.capture.timeperframe.numerator = 1;
-		param.parm.capture.timeperframe.denominator = 15;
+		param.parm.capture.timeperframe.denominator = 24;
 
 		ioctl_exception(descriptor, VIDIOC_S_PARM, &param, (char *)"Could not set framerate");
 	
@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
 	}
 	
 	int currentPos = 0;
-	int packet = 32;
+	int packet = 8192;
 	int thisPacket = packet;
 	i = 1;
 
@@ -211,14 +211,16 @@ int main(int argc, char** argv) {
 			ioctl_exception(descriptor, VIDIOC_DQBUF, &buffer.bufferInfo, (char *)"Failed to dequeue buffer");
 			
 			socket.write(&buffer.bufferInfo.bytesused, sizeof(int)); // Send the length of the buffer
+			socket.write(buffer.start, buffer.bufferInfo.bytesused);
 
-			while(currentPos < buffer.bufferInfo.bytesused) {
-				thisPacket = packet;
-				if(currentPos + packet > buffer.bufferInfo.bytesused) thisPacket = buffer.bufferInfo.bytesused - currentPos;
+			// while(currentPos < buffer.bufferInfo.bytesused) {
+				// thisPacket = packet;
+				// if(currentPos + packet > buffer.bufferInfo.bytesused) thisPacket = buffer.bufferInfo.bytesused - currentPos;
 				
-				currentPos += socket.write(buffer.start + currentPos, thisPacket);
-			}
-			currentPos = 0;
+				// currentPos += socket.write(buffer.start + currentPos, thisPacket);
+				// std::cout << currentPos << std::endl;
+			// }
+			// currentPos = 0;
 			ioctl_exception(descriptor, VIDIOC_QBUF, &buffer.bufferInfo, (char *)"Failed to queue buffer");
 
 		} catch(v4l2_exception& e) {

@@ -3,7 +3,7 @@
 #include "SocketException.h"
 
 AbstractSocket::AbstractSocket() {
-	descriptor = socket(AF_INET, SOCK_STREAM, 0); // TCP socket using IPv4
+	descriptor = socket(AF_INET, SOCK_DGRAM, 0); // TCP socket using IPv4
 
 	if(descriptor < 0) throw SocketException("Socket could not be created!"); // Some socket creation error
 
