@@ -13,7 +13,7 @@
 
 #include <linux/videodev2.h>
 
-#include "AbstractSocket.h"
+#include "Socket.h"
 #include "SocketException.h"
 
 #include <exception>
@@ -46,7 +46,7 @@ struct videoBuffer {
 int main(int argc, char** argv) {
 	std::cout << "Initializing Camera Client v." << VERSION << "..." << std::endl;
 	if(argc < 8) {
-		std::cerr << "Incorrect Arguments. Arguments required: 1. Server Address 2. Port 3. Camera Width 4. Camera Height 5. Camera ID 6. Maximum Reconnect Attempts 7. Duration between reconnect attempts" << std::endl;
+		std::cerr << "Incorrect Arguments. Arguments required: 1. Server Address 2. Port 3. Camera Width 4. Camera Height "<< std::endl;
 		return 1;
 	}
 	
@@ -56,16 +56,16 @@ int main(int argc, char** argv) {
 	int port = atoi(argv[2]);
 	int width = atoi(argv[3]);
 	int height = atoi(argv[4]);
-	int id = atoi(argv[5]);
-	int maxReconnect = atoi(argv[6]);
-	int duration = atoi(argv[7]); // Time between reconnect attempts
+	// int id = atoi(argv[5]);
+	// int maxReconnect = atoi(argv[6]);
+	// int duration = atoi(argv[7]); // Time between reconnect attempts
 	
 	std::cout << "Port: " << port << std::endl;
 	std::cout << "Width: " << width << std::endl;
 	std::cout << "Height: " << height << std::endl;
-	std::cout << "Id: " << id << std::endl;
-	std::cout << "Reconnect Attempts: " << maxReconnect << std::endl;
-	std::cout << "Duration between reconnects (s) : " << duration << std::endl;
+	// std::cout << "Id: " << id << std::endl;
+	// std::cout << "Reconnect Attempts: " << maxReconnect << std::endl;
+	// std::cout << "Duration between reconnects (s) : " << duration << std::endl;
 
 	int descriptor = open("/dev/video0", O_RDWR);
 	if(descriptor < 0) {
@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
 
 	sigaction(SIGPIPE, &action, NULL);
 
-	AbstractSocket socket = AbstractSocket();
+	Socket socket = Socket();
 
 	bool connected = false;
 	int i = 1;
@@ -166,11 +166,11 @@ int main(int argc, char** argv) {
 			socket.write(&id, sizeof(int));
 			break;
 		} catch(std::exception& e) {
-			if(i >= maxReconnect) {
-				std::cout << "Exceeded Max Connection Attempts. Exiting..." << std::endl;
-				return 1;
-			}
-			std::this_thread::sleep_for(std::chrono::seconds(duration));
+			// if(i >= maxReconnect) {
+			// 	std::cout << "Exceeded Max Connection Attempts. Exiting..." << std::endl;
+			// 	return 1;
+			// }
+			std::this_thread::sleep_for(std::chrono::seconds(5));
 		}
 		i++;
 	}
@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
 	while(true) {
 		while(!connected) {
 			std::cout << "Reconnection Attempt " << i << std::endl;		
-			new (&socket) AbstractSocket();
+			new (&socket) Socket();
 				
 			try {
 				socket.connect(port, std::string(serverAddress));
@@ -194,12 +194,12 @@ int main(int argc, char** argv) {
 				thisPacket = packet;
 				ioctl_exception(descriptor, VIDIOC_QBUF, &buffer.bufferInfo, (char *)"Failed to queue buffer");
 			} catch(SocketException& e) {
-				if(i >= maxReconnect) {
-					std::cout << "Exceeded Max Reconnect Attempts. Exiting..." << std::endl;
-					return 1;
-				}
+				// if(i >= maxReconnect) {
+				// 	std::cout << "Exceeded Max Reconnect Attempts. Exiting..." << std::endl;
+				// 	return 1;
+				// }
 
-				std::this_thread::sleep_for(std::chrono::seconds(duration));
+				std::this_thread::sleep_for(std::chrono::seconds(5));
 			} catch(v4l2_exception& e) {		
 				std::cout << e.what() << std::endl;
 				return 1;
@@ -240,7 +240,7 @@ int main(int argc, char** argv) {
 			connected = false;
 			i = 1;
 			std::cout << "Server disconnected, attempting to reinitialize connection" << std::endl;
-			socket.~AbstractSocket();
+			socket.~Socket();
 		}
 	}
 }

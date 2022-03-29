@@ -1,5 +1,5 @@
-#ifndef ABSTRACT_SOCKET_H
-#define ABSTRACT_SOCKET_H
+#ifndef SOCKET_H
+#define SOCKET_H
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -11,7 +11,7 @@
 #include <string.h>
 typedef struct sockaddr_in sockaddr_in;
 
-class AbstractSocket {
+class Socket {
 	private:
 	int descriptor;
 	int connectedSocket = -1;
@@ -20,9 +20,8 @@ class AbstractSocket {
 	
 	sockaddr_in address;
 	
-	public:
-	AbstractSocket();
-	~AbstractSocket();
+	public();
+	~Socket();
 
 	void listen(int, int);
 	void connect(int, std::string);

@@ -1,8 +1,13 @@
 #define _GLIBCXX_USE_CXX11_ABI 0
-#include "AbstractSocket.h"
-#include "SocketException.h"
+#include "Socket.h"
 
-AbstractSocket::AbstractSocket() {
+SocketException::SocketException(const char* _msg) : msg(_msg) {}
+
+const char* SocketException::what() const noexcept {
+	return msg;
+}
+
+Socket::Socket() {
 	descriptor = socket(AF_INET, SOCK_DGRAM, 0); // TCP socket using IPv4
 
 	if(descriptor < 0) throw SocketException("Socket could not be created!"); // Some socket creation error
@@ -11,11 +16,11 @@ AbstractSocket::AbstractSocket() {
 	memset(&address, '0', sizeof(address)); 
 }
 
-AbstractSocket::~AbstractSocket() {
+Socket::~Socket() {
 	close(descriptor);
 } // R A I I 
 
-void AbstractSocket::listen(int portNumber, int maxQueue) { // listen on port
+void Socket::listen(int portNumber, int maxQueue) { // listen on port
 	memset(&address, '0', sizeof(address));
 
 	address.sin_family = AF_INET;
@@ -27,7 +32,7 @@ void AbstractSocket::listen(int portNumber, int maxQueue) { // listen on port
 	if(::listen(descriptor, maxQueue) < 0) throw SocketException("Socket could not listen.");
 }
 
-void AbstractSocket::connect(int portNumber, std::string hostAddr) { // connect to remote host
+void Socket::connect(int portNumber, std::string hostAddr) { // connect to remote host
 	memset(&address, '0', sizeof(address));
 	
 	address.sin_family = AF_INET;
@@ -39,21 +44,21 @@ void AbstractSocket::connect(int portNumber, std::string hostAddr) { // connect 
 
 }
 
-void AbstractSocket::waitForConnection() { // block until incoming request - sets connectedSocket for reading and writing
+void Socket::waitForConnection() { // block until incoming request - sets connectedSocket for reading and writing
 	int addrlen = sizeof(address);
 	connectedSocket = accept(descriptor, (struct sockaddr *)&address, (socklen_t *)&addrlen);
 	
 	if(connectedSocket < 0) throw SocketException("Could not accept a valid socket.");	
 }
 
-int AbstractSocket::write(const void* buf, int len) { // write len bytes from buf to socket
+int Socket::write(const void* buf, int len) { // write len bytes from buf to socket
 	int sent;
 	
 	if((sent = send(descriptor, buf, len, 0)) < 0) throw SocketException("Failed to send.");
 	return sent; // return number of bytes sent
 }
 
-int AbstractSocket::read(void* buf, int len) { // read len bytes from socket into buf
+int Socket::read(void* buf, int len) { // read len bytes from socket into buf
 	int read;
 
 	if((read = recv(connectedSocket, buf, len, MSG_WAITALL)) < 0) throw SocketException("Could not read len bytes from descriptor.");
